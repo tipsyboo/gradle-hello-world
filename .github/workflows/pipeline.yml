@@ -1,0 +1,41 @@
+name: Java CI Pipeline
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Increment patch version
+        id: versioning
+        run: |
+          CURRENT_VERSION=$(grep "^version = " build.gradle.kts | cut -d'"' -f2)
+          echo "Current Version: $CURRENT_VERSION"
+
+          IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+          NEW_PATCH=$((patch + 1))
+          NEW_VERSION="$major.$minor.$NEW_PATCH"
+          echo "New Version: $NEW_VERSION"
+
+          sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" build.gradle.kts
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit and push version update
+        run: |
+          git config --global user.name "github.actions"
+          git config --global user.email "github.actions@github.com"
+          git add build.gradle.kts
+          git commit -m "increment version to ${{ steps.versioning.outputs.new_version }} [skip ci]"
+          git push
