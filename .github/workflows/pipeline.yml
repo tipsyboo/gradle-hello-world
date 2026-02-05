@@ -72,6 +72,11 @@ jobs:
           IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/gradle-hello-world
           cosign sign --yes $IMAGE_NAME:${{ steps.versioning.outputs.new_version }}
 
+      - name: Publish SBOM to registry
+        run: |
+          IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/gradle-hello-world
+          cosign attest --yes --predicate sbom.json --type cyclonedx $IMAGE_NAME:${{ steps.versioning.outputs.new_version }}
+
       - name: Pull and run
         run: |
           IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/gradle-hello-world
