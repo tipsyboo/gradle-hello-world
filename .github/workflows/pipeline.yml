@@ -36,6 +36,19 @@ jobs:
         run: |
           docker build -t gradle-hello-world:${{ steps.versioning.outputs.new_version }} .
 
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'gradle-hello-world:${{ steps.versioning.outputs.new_version }}'
+          format: 'cyclonedx'
+          output: 'sbom.json'
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ steps.versioning.outputs.new_version }}
+          path: sbom.json
+
       - name: Commit and push version update
         run: |
           git config --global user.name "github.actions"
