@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Checkout code
@@ -37,7 +38,7 @@ jobs:
           docker build -t gradle-hello-world:${{ steps.versioning.outputs.new_version }} .
 
       - name: Generate SBOM
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: 'gradle-hello-world:${{ steps.versioning.outputs.new_version }}'
           format: 'cyclonedx'
@@ -48,6 +49,36 @@ jobs:
         with:
           name: sbom-${{ steps.versioning.outputs.new_version }}
           path: sbom.json
+
+      - name: Login to docker hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push docker image
+        run: |
+          IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/gradle-hello-world
+          docker tag gradle-hello-world:${{ steps.versioning.outputs.new_version }} $IMAGE_NAME:${{ steps.versioning.outputs.new_version }}
+          docker tag gradle-hello-world:${{ steps.versioning.outputs.new_version }} $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:${{ steps.versioning.outputs.new_version }}
+          docker push $IMAGE_NAME:latest
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.0.0
+
+      - name: Sign docker image
+        run: |
+          IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/gradle-hello-world
+          cosign sign --yes $IMAGE_NAME:${{ steps.versioning.outputs.new_version }}
+
+      - name: Pull and run
+        run: |
+          IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/gradle-hello-world
+          docker rmi -f $(docker images -q --filter=reference='*gradle-hello-world*')
+          
+          docker pull $IMAGE_NAME:${{ steps.versioning.outputs.new_version }}
+          docker run --rm $IMAGE_NAME:${{ steps.versioning.outputs.new_version }}
 
       - name: Commit and push version update
         run: |
